@@ -1,34 +1,56 @@
+import Head from "next/head";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+import Nav from "../components/Nav.js";
+import Filter from "../components/Filter.js";
+import Title from "../components/Title.js";
+import MetaTags from "../components/Metatags.js";
+import Analytics from "../components/Analytics.js";
+import FilterSVG from "../components/Icons/FilterSVG.js";
+
+// ==============================
+//  GET DATA FROM GOOGLE SHEETS
+// ==============================
 export async function getStaticProps() {
-  const origin =
-    process.env.NODE_ENV !== "production"
-      ? "http://localhost:3000"
-      : "https://staywork.digital"; // 👈 TU dominio
+  const isProd = process.env.NODE_ENV === "production";
 
-  const res = await fetch(`${origin}/api/designers`);
-  const designers = await res.json();
+  // En producción usamos la URL del deploy real
+  const origin = isProd
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
 
-  let uniqueExpertise = new Set();
-  designers.map((d) => uniqueExpertise.add(d.expertise));
+  console.log("ORIGIN:", origin);
 
-  let uniqueLocation = new Set();
-  designers.map((d) => uniqueLocation.add(d.location));
+  try {
+    const res = await fetch(`${origin}/api/designers`);
+    const designers = await res.json();
 
-  let expertises = Array.from(uniqueExpertise).map((e) => {
-    return { label: e, active: false, category: "expertise" };
-  });
+    // Extraer categorías
+    let uniqueExpertise = new Set();
+    let uniqueLocation = new Set();
 
-  let locations = Array.from(uniqueLocation)
-    .sort()
-    .map((e) => {
-      return { label: e, active: false, category: "location" };
+    designers.forEach((d) => {
+      uniqueExpertise.add(d.expertise);
+      uniqueLocation.add(d.location);
     });
 
-  let filters = expertises.concat(locations);
+    let expertises = Array.from(uniqueExpertise).map((e) => ({
+      label: e,
+      active: false,
+      category: "expertise",
+    }));
 
-  return {
-    props: {
-      designers,
-      filters,
-    },
-  };
-}
+    let locations = Array.from(uniqueLocation)
+      .sort()
+      .map((e) => ({
+        label: e,
+        active: false,
+        category: "location",
+      }));
+
+    let filters = expertises.concat(locations);
+
+    return {
+      props: {
+        designers
