@@ -19,16 +19,13 @@ export default async (req, res) => {
       version: "v4",
     });
 
-    // Replace the spreadsheetId with your spreadsheet ID.
-    // Replace the range with the tab name.
-    // Issues with permissions look at this guide: https://leerob.io/snippets/google-sheets
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: "12LLA-NoHin0zQfmpEblgMjd260bmriLMowBAH1QDOhI",
-      range: "Designers", // sheet name
+      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk",
+      range: "Talent", // Nombre de tu pestaña
     });
 
-    //TODO: Map the collum to object name automatically.
     const rows = response.data.values;
+
     const db = rows.map((row) => ({
       name: row[0],
       location: row[1],
@@ -42,10 +39,10 @@ export default async (req, res) => {
       (item) => item.name != "" && item.approved == "Yes"
     );
 
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify(sanitizeResult));
+    res.status(200).json(sanitizeResult);
+
   } catch (err) {
-    console.log(err);
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong", details: err });
   }
 };
