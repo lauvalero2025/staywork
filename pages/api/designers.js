@@ -1,40 +1,34 @@
-import { google } from "googleapis";
-
 export default async function handler(req, res) {
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY,
-      },
-      scopes: [
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/spreadsheets",
-      ],
+    const sheetId = "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk"; // tu ID
+    const sheetName = "Talent"; // nombre de la pestaña
+
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
+      sheetName
+    )}`;
+
+    const response = await fetch(url);
+    const text = await response.text();
+
+    // La respuesta viene envuelta en google.visualization... hay que limpiarla
+    const jsonStr = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+    const data = JSON.parse(jsonStr);
+
+    const rows = data.table?.rows || [];
+
+    const db = rows.map((row) => {
+      const c = row.c || [];
+      return {
+        name: c[0]?.v || "",
+        location: c[1]?.v || "",
+        expertise: c[2]?.v || "",
+        link: c[3]?.v || "",
+        approved: c[4]?.v || "",
+        featured: c[5]?.v || "",
+      };
     });
 
-    const sheets = google.sheets({
-      auth,
-      version: "v4",
-    });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk",
-      range: "Talent",
-    });
-
-    const rows = response.data.values || [];
-
-    const db = rows.map((row) => ({
-      name: row[0],
-      location: row[1],
-      expertise: row[2],
-      link: row[3],
-      approved: row[4],
-      featured: row[5],
-    }));
-
+    // solo los aprobados con "Yes"
     const sanitizeResult = db.filter(
       (item) => item.name && item.approved === "Yes"
     );
@@ -45,7 +39,6 @@ export default async function handler(req, res) {
     res.status(500).json({
       error: "Something went wrong",
       message: err.message,
-      details: err,
     });
   }
 }
