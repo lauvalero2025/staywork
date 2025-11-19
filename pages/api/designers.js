@@ -5,8 +5,7 @@ export default async function handler(req, res) {
     const auth = new google.auth.GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        // Muy importante: convertir los "\n" de texto en saltos de línea reales
-        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        private_key: process.env.GOOGLE_PRIVATE_KEY,
       },
       scopes: [
         "https://www.googleapis.com/auth/drive",
@@ -22,7 +21,7 @@ export default async function handler(req, res) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk",
-      range: "Talent", // pestaña de tu Google Sheet
+      range: "Talent",
     });
 
     const rows = response.data.values || [];
@@ -36,7 +35,6 @@ export default async function handler(req, res) {
       featured: row[5],
     }));
 
-    // De momento dejo el filtro por "Yes" tal cual
     const sanitizeResult = db.filter(
       (item) => item.name && item.approved === "Yes"
     );
