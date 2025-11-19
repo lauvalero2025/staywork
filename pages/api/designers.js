@@ -44,6 +44,10 @@ export default async function handler(req, res) {
     res.status(200).json(sanitizeResult);
   } catch (err) {
     console.error("API /designers error:", err);
-    res.status(500).json({ error: "Something went wrong" });
+    res.status(500).json({
+      error: "Something went wrong",
+      message: err.message,
+      details: err,
+    });
   }
 }
