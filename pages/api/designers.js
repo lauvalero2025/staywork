@@ -1,48 +1,43 @@
 // pages/api/designers.js
-import { google } from "googleapis";
+// Versión SIN Google Auth: lee la hoja pública de Google Sheets
 
 export default async function handler(req, res) {
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        // 👇 MUY IMPORTANTE: convertir los "\n" del ENV en saltos de línea reales
-        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      },
-      scopes: [
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/spreadsheets",
-      ],
-    });
+    const sheetId = "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk"; // tu ID
+    const sheetName = "Talent"; // nombre de la pestaña
 
-    const sheets = google.sheets({
-      auth,
-      version: "v4",
-    });
+    // Google devuelve un pseudo-JSON envuelto en una función JS
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=${encodeURIComponent(
+      sheetName
+    )}&tqx=out:json`;
 
-    // 👇 Tu hoja
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk",
-      range: "Talent", // nombre de la pestaña
-    });
+    const response = await fetch(url);
+    const text = await response.text();
 
-    const rows = response.data.values || [];
+    // Extraemos solo la parte JSON del texto
+    const jsonString = text.substring(
+      text.indexOf("{"),
+      text.lastIndexOf("}") + 1
+    );
+    const data = JSON.parse(jsonString);
 
-    // Suponiendo columnas:
+    const rows = data.table?.rows || [];
+
+    // Columnas esperadas:
     // A: Name | B: Location | C: Expertise | D: Link | E: Show | F: Order
-    const db = rows
-      .slice(1) // saltar cabecera
-      .map((row) => ({
-        name: row[0] || "",
-        location: row[1] || "",
-        expertise: row[2] || "",
-        link: row[3] || "",
-        show: row[4] || "",
-        order: Number(row[5] || 0),
-      }));
+    const db = rows.map((row) => {
+      const c = row.c || [];
+      return {
+        name: c[0]?.v || "",
+        location: c[1]?.v || "",
+        expertise: c[2]?.v || "",
+        link: c[3]?.v || "",
+        show: c[4]?.v || "",
+        order: Number(c[5]?.v || 0),
+      };
+    });
 
-    // Solo mostrar los que tienen nombre y Show = "Yes"
+    // Filtramos solo los que tienen nombre y Show = "Yes"
     const sanitizeResult = db.filter(
       (item) => item.name !== "" && item.show === "Yes"
     );
