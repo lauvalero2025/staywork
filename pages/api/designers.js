@@ -1,64 +1,39 @@
 // pages/api/designers.js
-import { google } from "googleapis";
 
 export default async function handler(req, res) {
   try {
-    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-    const rawPrivateKey = process.env.GOOGLE_PRIVATE_KEY;
+    const csvUrl =
+      "https://docs.google.com/spreadsheets/d/1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk/export?format=csv&gid=0";
 
-    if (!clientEmail || !rawPrivateKey) {
-      return res.status(500).json({
-        error: "Missing Google credentials",
-      });
-    }
+    const response = await fetch(csvUrl);
+    const text = await response.text();
 
-    // IMPORTANTE: convertir "\n" en saltos de línea reales
-    const privateKey = rawPrivateKey.replace(/\\n/g, "\n");
+    const lines = text.trim().split("\n");
+    const [header, ...rows] = lines;
 
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    const db = rows.map((line) => {
+      const cols = line.split(",");
+
+      return {
+        name: cols[0] || "",
+        location: cols[1] || "",
+        expertise: cols[2] || "",
+        link: cols[3] || "",
+        show: cols[4] || "",
+        order: cols[5] || "",
+      };
     });
 
-    const sheets = google.sheets({ auth, version: "v4" });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk", // TU hoja
-      range: "Talent", // pestaña
-    });
-
-    const rows = response.data.values || [];
-
-    // Primera fila = cabecera
-    const [, ...dataRows] = rows;
-
-    const db = dataRows.map((row) => ({
-      name: row[0] || "",
-      location: row[1] || "",
-      expertise: row[2] || "",
-      link: row[3] || "",
-      show: row[4] || "",
-      order: row[5] || "",
-    }));
-
-    // Solo los que tienen nombre y Show = "Yes"
     const visible = db.filter(
       (item) => item.name !== "" && item.show === "Yes"
     );
 
-    return res.status(200).json(visible);
+    res.status(200).json(visible);
   } catch (err) {
     console.error("ERROR /api/designers:", err);
-    return res.status(500).json({
+    res.status(500).json({
       error: "Something went wrong",
       message: err.message,
     });
   }
 }
-export default function handler(req, res) {
-  res.status(200).json({ ok: true });
-}
-
