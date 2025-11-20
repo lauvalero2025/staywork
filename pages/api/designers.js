@@ -1,43 +1,48 @@
+// pages/api/designers.js
+import { google } from "googleapis";
+
 export default async function handler(req, res) {
   try {
-    const sheetId = "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk"; // tu ID
-    const sheetName = "Talent"; // nombre de la pestaña
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY,
+      },
+      scopes: [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.readonly",
+      ],
+    });
 
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
-      sheetName
-    )}`;
+    const sheets = google.sheets({ auth, version: "v4" });
 
-    const response = await fetch(url);
-    const text = await response.text();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk",
+      range: "Talent",
+    });
 
-    // La respuesta viene envuelta en google.visualization... hay que limpiarla
-    const jsonStr = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-    const data = JSON.parse(jsonStr);
-
-    const rows = data.table?.rows || [];
+    const rows = response.data.values || [];
 
     const db = rows.map((row) => ({
-  name: row[0],
-  location: row[1],
-  expertise: row[2],
-  link: row[3],
-  approved: row[4],
-  featured: row[5],
-  photo: row[6] || "", // 👈 columna Photo
-}));
+      name: row[0] || "",
+      location: row[1] || "",
+      expertise: row[2] || "",
+      link: row[3] || "",
+      show: row[4] || "",       // antes "approved"
+      order: row[5] || "",
+      linkedin: row[6] || "",
+      instagram: row[7] || "",
+      photo: row[8] || "",       // ahora sí, columna I
+    }));
 
-
-    // solo los aprobados con "Yes"
-    const sanitizeResult = db.filter(
-      (item) => item.name && item.approved === "Yes"
+    // FILTRO: solo mostrar Show = "Yes"
+    const visible = db.filter(
+      (item) => item.name !== "" && item.show === "Yes"
     );
 
-    res.status(200).json(sanitizeResult);
+    res.status(200).json(visible);
   } catch (err) {
-    console.error("API /designers error:", err);
-    res.status(500).json({
-      error: "Something went wrong",
-      message: err.message,
-    });
+    console.error("API ERROR:", err);
+    res.status(500).json({ error: "Something went wrong" });
   }
 }
