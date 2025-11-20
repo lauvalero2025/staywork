@@ -254,11 +254,18 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
             <tbody>
               {designers.map((d, i) => (
                 <tr key={`${d.name}-${i}`}>
-                  <td>
+                  {/* ✅ Nombre + foto a la derecha */}
+                  <td className="nameWithPhoto">
                     <a href={d.link} target="_blank" rel="noreferrer">
                       {d.name}
                     </a>
+                    {d.photo && (
+                      <div className="photoWrapper">
+                        <img src={d.photo} alt={d.name} />
+                      </div>
+                    )}
                   </td>
+
                   <td className="thsize-aux dn">
                     <a href={d.link} target="_blank" rel="noreferrer">
                       {d.location}
@@ -321,12 +328,27 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
           padding-top: 0;
           padding-bottom: 0;
         }
+
+        /* 🔥 Nombre + foto a la derecha dentro de la celda */
+        .nameWithPhoto {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .photoWrapper img {
+          height: 48px; /* altura aproximada de la fila */
+          width: 48px;
+          object-fit: cover;
+          border-radius: 8px; /* si la quieres circular: 50% */
+        }
       `}</style>
     </div>
   );
 }
 
-// util: mezcla si algún día lo quieres usar
+// util
 function shuffle(array) {
   let m = array.length;
   let temp;
