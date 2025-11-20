@@ -36,12 +36,12 @@ export default async function handler(req, res) {
     const [, ...dataRows] = rows;
 
     const db = dataRows.map((row) => ({
-      name: row[0] || "",
-      location: row[1] || "",
-      expertise: row[2] || "",
-      link: row[3] || "",
-      show: row[4] || "",
-      order: row[5] || "",
+      name: row[A] || "",
+      location: row[B] || "",
+      expertise: row[C] || "",
+      link: row[D] || "",
+      show: row[E] || "",
+      order: row[F] || "",
     }));
 
     // Solo los que tienen nombre y Show = "Yes"
