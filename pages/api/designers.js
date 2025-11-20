@@ -1,313 +1,60 @@
-// pages/index.js
-import Head from "next/head";
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+// pages/api/designers.js
+import { google } from "googleapis";
 
-import Nav from "../components/Nav.js";
-import Filter from "../components/Filter.js";
-import Title from "../components/Title.js";
-import MetaTags from "../components/Metatags.js";
-import Analytics from "../components/Analytics.js";
-import FilterSVG from "../components/Icons/FilterSVG.js";
+export default async function handler(req, res) {
+  try {
+    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+    const rawPrivateKey = process.env.GOOGLE_PRIVATE_KEY;
 
-export default function Home() {
-  const [designers, setDesigners] = useState([]);
-  const [designersList, setDesignersList] = useState([]);
-  const [filterIsOpen, setFilterIsOpen] = useState(false);
-  const [filterList, setFilterList] = useState([]);
-  const [filterCategory, setFilterCategory] = useState(null);
-
-  // Cargar datos desde la API
-  useEffect(() => {
-    async function loadDesigners() {
-      try {
-        const res = await fetch("/api/designers");
-        const data = await res.json();
-
-        const clean = data.map((d) => ({
-          ...d,
-          expertise: d.expertise || "",
-          location: d.location || "",
-          link: d.link || "",
-        }));
-
-        setDesigners(clean);
-
-        // Filtros únicos
-        const uniqueExpertise = new Set();
-        const uniqueLocation = new Set();
-
-        clean.forEach((d) => {
-          if (d.expertise) uniqueExpertise.add(d.expertise);
-          if (d.location) uniqueLocation.add(d.location);
-        });
-
-        const expertises = Array.from(uniqueExpertise).map((e) => ({
-          label: e,
-          active: false,
-          category: "expertise",
-        }));
-
-        const locations = Array.from(uniqueLocation)
-          .sort()
-          .map((e) => ({
-            label: e,
-            active: false,
-            category: "location",
-          }));
-
-        setFilterList([...expertises, ...locations]);
-
-        // Lista inicial: orden alfabético por nombre
-        const sorted = [...clean].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
-        setDesignersList(sorted);
-      } catch (err) {
-        console.error("Error cargando designers:", err);
-      }
+    if (!clientEmail || !rawPrivateKey) {
+      return res.status(500).json({
+        error: "Missing Google credentials",
+      });
     }
 
-    loadDesigners();
-  }, []);
+    // IMPORTANTE: convertir "\n" en saltos de línea reales
+    const privateKey = rawPrivateKey.replace(/\\n/g, "\n");
 
-  // ----- FILTROS -----
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey,
+      },
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
 
-  const handleCloseFilter = (e) => {
-    setFilterIsOpen(false);
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    return false;
-  };
+    const sheets = google.sheets({ auth, version: "v4" });
 
-  const handleOpenFilter = (category) => {
-    setFilterCategory(category);
-    setFilterIsOpen(true);
-  };
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk", // TU hoja
+      range: "Talent", // pestaña
+    });
 
-  const clearFilter = () => {
-    const newFilter = filterList.map(({ label, category }) => ({
-      label,
-      category,
-      active: false,
+    const rows = response.data.values || [];
+
+    // Primera fila = cabecera
+    const [, ...dataRows] = rows;
+
+    const db = dataRows.map((row) => ({
+      name: row[0] || "",
+      location: row[1] || "",
+      expertise: row[2] || "",
+      link: row[3] || "",
+      show: row[4] || "",
+      order: row[5] || "",
     }));
 
-    setFilterList(newFilter);
-
-    const sorted = [...designers].sort((a, b) =>
-      a.name.localeCompare(b.name)
+    // Solo los que tienen nombre y Show = "Yes"
+    const visible = db.filter(
+      (item) => item.name !== "" && item.show === "Yes"
     );
-    setDesignersList(sorted);
-  };
 
-  const handleFilterClick = (item) => {
-    const newFilterList = [...filterList];
-    const indexof = newFilterList.indexOf(item);
-    newFilterList[indexof].active = !newFilterList[indexof].active;
-    setFilterList(newFilterList);
-
-    const filterExpert = newFilterList
-      .filter((f) => f.category === "expertise")
-      .map((d) => d.label);
-
-    const filterLocation = newFilterList
-      .filter((f) => f.category === "location")
-      .map((d) => d.label);
-
-    let activeFilters = newFilterList
-      .filter((d) => d.active === true)
-      .map((d) => d.label);
-
-    if (filterExpert.filter((f) => activeFilters.includes(f)).length <= 0)
-      activeFilters = activeFilters.concat(filterExpert);
-
-    if (filterLocation.filter((f) => activeFilters.includes(f)).length <= 0)
-      activeFilters = activeFilters.concat(filterLocation);
-
-    if (activeFilters.length > 0) {
-      const filtered = designers.filter(
-        (d) =>
-          activeFilters.includes(d.expertise) &&
-          activeFilters.includes(d.location)
-      );
-
-      const sortedFiltered = filtered.sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
-      setDesignersList(sortedFiltered);
-    } else {
-      clearFilter();
-    }
-  };
-
-  return (
-    <div className="container">
-      <Head>
-        <title>People who design</title>
-        <link id="favicon" rel="alternate icon" href="/favicon.ico" />
-        <MetaTags />
-      </Head>
-
-      <Content
-        designers={designersList}
-        handleOpenFilter={handleOpenFilter}
-      />
-
-      <AnimatePresence>
-        {filterIsOpen ? (
-          <Filter
-            items={filterList.filter((f) => f.category === filterCategory)}
-            handleFilterClick={handleFilterClick}
-            handleCloseFilter={handleCloseFilter}
-            categoryName={filterCategory}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <style global jsx>{`
-        html,
-        body {
-          overflow: ${filterIsOpen ? "hidden" : "auto"};
-        }
-      `}</style>
-
-      <Analytics />
-    </div>
-  );
-}
-
-function Content({ designers, handleOpenFilter, className, onClick }) {
-  const tableHeaderRef = useRef();
-
-  useEffect(() => {
-    const header = tableHeaderRef.current;
-    if (!header) return;
-
-    const sticky = header.getBoundingClientRect().top + 40;
-
-    const scrollCallBack = () => {
-      if (window.pageYOffset > sticky) {
-        header.classList.add("sticky");
-      } else {
-        header.classList.remove("sticky");
-      }
-    };
-
-    window.addEventListener("scroll", scrollCallBack);
-    return () => {
-      window.removeEventListener("scroll", scrollCallBack);
-    };
-  }, []);
-
-  return (
-    <div className={className} onClick={onClick}>
-      <Nav />
-
-      <Title className="title m0 p0" text="People who&nbsp;design" />
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
-        <table className="large tableContent" cellSpacing="0">
-          <thead id="tableHeader" ref={tableHeaderRef}>
-            <tr>
-              <td>Name</td>
-              <td
-                className="thsize-aux dn filterTable"
-                onClick={(e) => {
-                  handleOpenFilter("location");
-                  e.preventDefault();
-                }}
-              >
-                Location <FilterSVG />
-              </td>
-              <td
-                className="thsize-aux filterTable"
-                onClick={(e) => {
-                  handleOpenFilter("expertise");
-                  e.preventDefault();
-                }}
-              >
-                Expertise <FilterSVG />
-              </td>
-              <td className="thsize-link"></td>
-            </tr>
-          </thead>
-          {designers && designers.length > 0 ? (
-            <tbody>
-              {designers.map((d, i) => (
-                <tr key={`${d.name}-${i}`}>
-                  <td>
-                    <a href={d.link} target="_blank" rel="noreferrer">
-                      {d.name}
-                    </a>
-                  </td>
-                  <td className="thsize-aux dn">
-                    <a href={d.link} target="_blank" rel="noreferrer">
-                      {d.location}
-                    </a>
-                  </td>
-                  <td className="thsize-aux">
-                    <a href={d.link} target="_blank" rel="noreferrer">
-                      {d.expertise}
-                    </a>
-                  </td>
-                  <td className="thsize-link">
-                    <a href={d.link} target="_blank" rel="noreferrer">
-                      →
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          ) : null}
-        </table>
-      </motion.div>
-      <style jsx>{`
-        .tableContent {
-          padding-top: 18vh;
-        }
-
-        .filterTable {
-          cursor: pointer;
-        }
-
-        thead {
-          height: 2.2rem;
-        }
-
-        .thsize-aux {
-          width: 30%;
-        }
-
-        .thsize-link {
-          width: 2rem;
-          text-align: right;
-        }
-
-        @media (max-width: 480px) {
-          .thsize-aux {
-            width: 35%;
-          }
-        }
-
-        tbody a {
-          width: 100%;
-          padding-bottom: 0.6em;
-          padding-top: 0.6em;
-          color: inherit;
-          display: inline-block;
-        }
-
-        table tbody td {
-          padding-top: 0;
-          padding-bottom: 0;
-        }
-      `}</style>
-    </div>
-  );
+    return res.status(200).json(visible);
+  } catch (err) {
+    console.error("ERROR /api/designers:", err);
+    return res.status(500).json({
+      error: "Something went wrong",
+      message: err.message,
+    });
+  }
 }
