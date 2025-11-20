@@ -1,51 +1,46 @@
-import { google } from "googleapis";
+// pages/api/designers.js
 
-export default async (req, res) => {
+export default async function handler(req, res) {
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY,
-      },
-      scopes: [
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/spreadsheets",
-      ],
+    const csvUrl =
+      "https://docs.google.com/spreadsheets/d/1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk/export?format=csv&gid=0";
+
+    // Leer el CSV público de Google Sheets
+    const response = await fetch(csvUrl);
+    const text = await response.text();
+
+    // Separar en líneas
+    const lines = text.trim().split("\n");
+    const [headerLine, ...rows] = lines;
+
+    // (Opcional) usamos el header por si acaso
+    // const headers = headerLine.split(",");
+
+    // Mapeamos cada línea del CSV a un objeto
+    const db = rows.map((line) => {
+      const cols = line.split(",");
+
+      return {
+        name: cols[0] || "",
+        location: cols[1] || "",
+        expertise: cols[2] || "",
+        link: cols[3] || "",
+        show: cols[4] || "",
+        order: cols[5] || "",
+      };
     });
 
-    const sheets = google.sheets({
-      auth,
-      version: "v4",
-    });
-
-    // Replace the spreadsheetId with your spreadsheet ID.
-    // Replace the range with the tab name.
-    // Issues with permissions look at this guide: https://leerob.io/snippets/google-sheets
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: "12LLA-NoHin0zQfmpEblgMjd260bmriLMowBAH1QDOhI",
-      range: "Designers", // sheet name
-    });
-
-    //TODO: Map the collum to object name automatically.
-    const rows = response.data.values;
-    const db = rows.map((row) => ({
-      name: row[0],
-      location: row[1],
-      expertise: row[2],
-      link: row[3],
-      approved: row[4],
-      featured: row[5],
-    }));
-
-    let sanitizeResult = db.filter(
-      (item) => item.name != "" && item.approved == "Yes"
+    // Filtrar: solo filas con nombre y Show = "Yes"
+    const visible = db.filter(
+      (item) => item.name !== "" && item.show === "Yes"
     );
 
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify(sanitizeResult));
+    res.status(200).json(visible);
   } catch (err) {
-    console.log(err);
+    console.error("ERROR /api/designers:", err);
+    res.status(500).json({
+      error: "Something went wrong",
+      message: err.message,
+    });
   }
-};
+}
