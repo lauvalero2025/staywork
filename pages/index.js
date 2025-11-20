@@ -273,7 +273,7 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
         }
 
         .thsize-aux {
-          width: 20%;
+          width: 30%;
         }
 
         .thsize-link {
@@ -283,7 +283,7 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
 
         @media (max-width: 480px) {
           .thsize-aux {
-            width: 30%;
+            width: 35%;
           }
         }
 
