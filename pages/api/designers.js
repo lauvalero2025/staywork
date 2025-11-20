@@ -36,10 +36,7 @@ export default async function handler(req, res) {
       link: row[3] || "",
       approved: row[4] || "",
       featured: row[5] ? Number(row[5]) : 0,
-      photo: row[6] || "",
-      instagram: row[7] || "",
-      twitter: row[8] || "",
-      linkedin: row[9] || "",
+   
     }));
 
     const sanitizeResult = db.filter(
