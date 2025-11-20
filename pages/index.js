@@ -2,7 +2,6 @@
 import Head from "next/head";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
 import Nav from "../components/Nav.js";
 import Filter from "../components/Filter.js";
 import Title from "../components/Title.js";
@@ -11,58 +10,48 @@ import Analytics from "../components/Analytics.js";
 import FilterSVG from "../components/Icons/FilterSVG.js";
 
 export default function Home() {
+  const [isReady, setIsReady] = useState(false);
   const [designers, setDesigners] = useState([]);
   const [designersList, setDesignersList] = useState([]);
   const [filterIsOpen, setFilterIsOpen] = useState(false);
   const [filterList, setFilterList] = useState([]);
   const [filterCategory, setFilterCategory] = useState(null);
 
-  // Cargar datos desde la API
+  // Cargar datos desde /api/designers en el navegador
   useEffect(() => {
     async function loadDesigners() {
       try {
         const res = await fetch("/api/designers");
         const data = await res.json();
 
-        const clean = data.map((d) => ({
-          ...d,
-          expertise: d.expertise || "",
-          location: d.location || "",
-          link: d.link || "",
-        }));
+        // data debe ser un array de objetos con:
+        // { name, location, expertise, link, approved, featured }
+        setDesigners(data);
 
-        setDesigners(clean);
+        // Filtros
+        const uniqueExpertise = [...new Set(data.map((d) => d.expertise))];
+        const uniqueLocation = [...new Set(data.map((d) => d.location))].sort();
 
-        // Filtros únicos
-        const uniqueExpertise = new Set();
-        const uniqueLocation = new Set();
-
-        clean.forEach((d) => {
-          if (d.expertise) uniqueExpertise.add(d.expertise);
-          if (d.location) uniqueLocation.add(d.location);
-        });
-
-        const expertises = Array.from(uniqueExpertise).map((e) => ({
+        const expertises = uniqueExpertise.map((e) => ({
           label: e,
           active: false,
           category: "expertise",
         }));
 
-        const locations = Array.from(uniqueLocation)
-          .sort()
-          .map((e) => ({
-            label: e,
-            active: false,
-            category: "location",
-          }));
+        const locations = uniqueLocation.map((e) => ({
+          label: e,
+          active: false,
+          category: "location",
+        }));
 
-        setFilterList([...expertises, ...locations]);
+        setFilterList(expertises.concat(locations));
 
-        // Lista inicial: orden alfabético por nombre
-        const sorted = [...clean].sort((a, b) =>
-          a.name.localeCompare(b.name)
+        // Lista inicial: mezclamos y ordenamos por featured (si existe)
+        setDesignersList(
+          shuffle(data).sort((a, b) => (b.featured || 0) - (a.featured || 0))
         );
-        setDesignersList(sorted);
+
+        setIsReady(true);
       } catch (err) {
         console.error("Error cargando designers:", err);
       }
@@ -71,7 +60,7 @@ export default function Home() {
     loadDesigners();
   }, []);
 
-  // ----- FILTROS -----
+  // ---- FILTROS ----
 
   const handleCloseFilter = (e) => {
     setFilterIsOpen(false);
@@ -95,19 +84,19 @@ export default function Home() {
     }));
 
     setFilterList(newFilter);
-
-    const sorted = [...designers].sort((a, b) =>
-      a.name.localeCompare(b.name)
+    setDesignersList(
+      shuffle(designers).sort((a, b) => (b.featured || 0) - (a.featured || 0))
     );
-    setDesignersList(sorted);
   };
 
   const handleFilterClick = (item) => {
     const newFilterList = [...filterList];
-    const indexof = newFilterList.indexOf(item);
-    newFilterList[indexof].active = !newFilterList[indexof].active;
+    const indexOf = newFilterList.indexOf(item);
+
+    newFilterList[indexOf].active = !newFilterList[indexOf].active;
     setFilterList(newFilterList);
 
+    // columnas
     const filterExpert = newFilterList
       .filter((f) => f.category === "expertise")
       .map((d) => d.label);
@@ -116,44 +105,53 @@ export default function Home() {
       .filter((f) => f.category === "location")
       .map((d) => d.label);
 
+    // activos
     let activeFilters = newFilterList
       .filter((d) => d.active === true)
       .map((d) => d.label);
 
-    if (filterExpert.filter((f) => activeFilters.includes(f)).length <= 0)
+    // Si no hay ninguno activo en una categoría, se consideran todos
+    if (filterExpert.filter((f) => activeFilters.includes(f)).length <= 0) {
       activeFilters = activeFilters.concat(filterExpert);
-
-    if (filterLocation.filter((f) => activeFilters.includes(f)).length <= 0)
+    }
+    if (filterLocation.filter((f) => activeFilters.includes(f)).length <= 0) {
       activeFilters = activeFilters.concat(filterLocation);
+    }
 
     if (activeFilters.length > 0) {
-      const filtered = designers.filter(
-        (d) =>
-          activeFilters.includes(d.expertise) &&
-          activeFilters.includes(d.location)
+      setDesignersList(
+        designers.filter(
+          (d) =>
+            activeFilters.includes(d.expertise) &&
+            activeFilters.includes(d.location)
+        )
       );
-
-      const sortedFiltered = filtered.sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
-      setDesignersList(sortedFiltered);
     } else {
       clearFilter();
     }
   };
 
   return (
-    <div className="container">
+    <div
+      className="container"
+      style={{
+        overflow: isReady ? "hidden" : "visible",
+      }}
+    >
       <Head>
         <title>People who design</title>
         <link id="favicon" rel="alternate icon" href="/favicon.ico" />
         <MetaTags />
       </Head>
 
-      <Content
-        designers={designersList}
-        handleOpenFilter={handleOpenFilter}
-      />
+      {isReady ? (
+        <Content
+          designers={designersList}
+          handleOpenFilter={handleOpenFilter}
+          onClick={filterIsOpen ? handleCloseFilter : undefined}
+          className={filterIsOpen ? "filterIsOpen" : ""}
+        />
+      ) : null}
 
       <AnimatePresence>
         {filterIsOpen ? (
@@ -172,8 +170,6 @@ export default function Home() {
           overflow: ${filterIsOpen ? "hidden" : "auto"};
         }
       `}</style>
-
-      <Analytics />
     </div>
   );
 }
@@ -183,19 +179,14 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
 
   useEffect(() => {
     const header = tableHeaderRef.current;
-    if (!header) return;
-
     const sticky = header.getBoundingClientRect().top + 40;
-
-    const scrollCallBack = () => {
+    const scrollCallBack = window.addEventListener("scroll", () => {
       if (window.pageYOffset > sticky) {
         header.classList.add("sticky");
       } else {
         header.classList.remove("sticky");
       }
-    };
-
-    window.addEventListener("scroll", scrollCallBack);
+    });
     return () => {
       window.removeEventListener("scroll", scrollCallBack);
     };
@@ -205,7 +196,7 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
     <div className={className} onClick={onClick}>
       <Nav />
 
-      <Title className="title m0 p0" text="People who&nbsp;design" />
+      <Title className="title m0 p0" text="People&nbsp;who&nbsp;design" />
 
       <motion.div
         initial={{ opacity: 0 }}
@@ -240,7 +231,7 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
           {designers && designers.length > 0 ? (
             <tbody>
               {designers.map((d, i) => (
-                <tr key={`${d.name}-${i}`}>
+                <tr key={⁠ ${d.name}-${i} ⁠}>
                   <td>
                     <a href={d.link} target="_blank" rel="noreferrer">
                       {d.name}
@@ -267,6 +258,7 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
           ) : null}
         </table>
       </motion.div>
+
       <style jsx>{`
         .tableContent {
           padding-top: 18vh;
@@ -308,6 +300,24 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
           padding-bottom: 0;
         }
       `}</style>
+
+      <Analytics />
     </div>
   );
+}
+
+function shuffle(array) {
+  const arr = [...array];
+  let m = arr.length,
+    temp,
+    i;
+
+  while (m) {
+    i = Math.floor(Math.random() * m--);
+    temp = arr[m];
+    arr[m] = arr[i];
+    arr[i] = temp;
+  }
+
+  return arr;
 }
