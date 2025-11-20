@@ -3,53 +3,56 @@ import { google } from "googleapis";
 
 export default async function handler(req, res) {
   try {
+    const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+    const rawPrivateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+    if (!clientEmail || !rawPrivateKey) {
+      return res.status(500).json({
+        error: "Missing Google credentials",
+      });
+    }
+
+    // IMPORTANTE: convertir "\n" en saltos de línea reales
+    const privateKey = rawPrivateKey.replace(/\\n/g, "\n");
+
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        // importante: convertir los \n del .env en saltos de línea reales
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        client_email: clientEmail,
+        private_key: privateKey,
       },
-      scopes: [
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/spreadsheets",
-      ],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
     });
 
-    const sheets = google.sheets({
-      auth,
-      version: "v4",
-    });
+    const sheets = google.sheets({ auth, version: "v4" });
 
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk", // tu sheet
-      range: "Talent", // nombre de la pestaña
+      spreadsheetId: "1Ld2e0gThTd0B41aBiWXSs4rHiV2_KvFrMQYqTVYg8sk", // TU hoja
+      range: "Talent", // pestaña
     });
 
     const rows = response.data.values || [];
 
-    // saltamos la primera fila (cabeceras)
-    const db = rows.slice(1).map((row) => ({
+    // Primera fila = cabecera
+    const [, ...dataRows] = rows;
+
+    const db = dataRows.map((row) => ({
       name: row[0] || "",
       location: row[1] || "",
       expertise: row[2] || "",
       link: row[3] || "",
-      approved: row[4] || "",
-      featured: row[5] ? Number(row[5]) : 0,
-   
+      show: row[4] || "",
+      order: row[5] || "",
     }));
 
-    const sanitizeResult = db.filter(
-      (item) =>
-        item.name &&
-        typeof item.approved === "string" &&
-        item.approved.toLowerCase() === "yes"
+    // Solo los que tienen nombre y Show = "Yes"
+    const visible = db.filter(
+      (item) => item.name !== "" && item.show === "Yes"
     );
 
-    res.status(200).json(sanitizeResult);
+    return res.status(200).json(visible);
   } catch (err) {
-    console.error("Error in /api/designers:", err);
-    res.status(500).json({
+    console.error("ERROR /api/designers:", err);
+    return res.status(500).json({
       error: "Something went wrong",
       message: err.message,
     });
