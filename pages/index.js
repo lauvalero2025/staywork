@@ -2,6 +2,7 @@
 import Head from "next/head";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
 import Nav from "../components/Nav.js";
 import Filter from "../components/Filter.js";
 import Title from "../components/Title.js";
@@ -10,48 +11,58 @@ import Analytics from "../components/Analytics.js";
 import FilterSVG from "../components/Icons/FilterSVG.js";
 
 export default function Home() {
-  const [isReady, setIsReady] = useState(false);
   const [designers, setDesigners] = useState([]);
   const [designersList, setDesignersList] = useState([]);
   const [filterIsOpen, setFilterIsOpen] = useState(false);
   const [filterList, setFilterList] = useState([]);
   const [filterCategory, setFilterCategory] = useState(null);
 
-  // Cargar datos desde /api/designers en el navegador
+  // Cargar datos desde la API
   useEffect(() => {
     async function loadDesigners() {
       try {
         const res = await fetch("/api/designers");
         const data = await res.json();
 
-        // data debe ser un array de objetos con:
-        // { name, location, expertise, link, approved, featured }
-        setDesigners(data);
+        const clean = data.map((d) => ({
+          ...d,
+          expertise: d.expertise || "",
+          location: d.location || "",
+          link: d.link || "",
+        }));
 
-        // Filtros
-        const uniqueExpertise = [...new Set(data.map((d) => d.expertise))];
-        const uniqueLocation = [...new Set(data.map((d) => d.location))].sort();
+        setDesigners(clean);
 
-        const expertises = uniqueExpertise.map((e) => ({
+        // Filtros únicos
+        const uniqueExpertise = new Set();
+        const uniqueLocation = new Set();
+
+        clean.forEach((d) => {
+          if (d.expertise) uniqueExpertise.add(d.expertise);
+          if (d.location) uniqueLocation.add(d.location);
+        });
+
+        const expertises = Array.from(uniqueExpertise).map((e) => ({
           label: e,
           active: false,
           category: "expertise",
         }));
 
-        const locations = uniqueLocation.map((e) => ({
-          label: e,
-          active: false,
-          category: "location",
-        }));
+        const locations = Array.from(uniqueLocation)
+          .sort()
+          .map((e) => ({
+            label: e,
+            active: false,
+            category: "location",
+          }));
 
-        setFilterList(expertises.concat(locations));
+        setFilterList([...expertises, ...locations]);
 
-        // Lista inicial: mezclamos y ordenamos por featured (si existe)
-        setDesignersList(
-          shuffle(data).sort((a, b) => (b.featured || 0) - (a.featured || 0))
+        // Lista inicial: orden alfabético por nombre
+        const sorted = [...clean].sort((a, b) =>
+          a.name.localeCompare(b.name)
         );
-
-        setIsReady(true);
+        setDesignersList(sorted);
       } catch (err) {
         console.error("Error cargando designers:", err);
       }
@@ -60,7 +71,7 @@ export default function Home() {
     loadDesigners();
   }, []);
 
-  // ---- FILTROS ----
+  // ----- FILTROS -----
 
   const handleCloseFilter = (e) => {
     setFilterIsOpen(false);
@@ -84,19 +95,19 @@ export default function Home() {
     }));
 
     setFilterList(newFilter);
-    setDesignersList(
-      shuffle(designers).sort((a, b) => (b.featured || 0) - (a.featured || 0))
+
+    const sorted = [...designers].sort((a, b) =>
+      a.name.localeCompare(b.name)
     );
+    setDesignersList(sorted);
   };
 
   const handleFilterClick = (item) => {
     const newFilterList = [...filterList];
-    const indexOf = newFilterList.indexOf(item);
-
-    newFilterList[indexOf].active = !newFilterList[indexOf].active;
+    const indexof = newFilterList.indexOf(item);
+    newFilterList[indexof].active = !newFilterList[indexof].active;
     setFilterList(newFilterList);
 
-    // columnas
     const filterExpert = newFilterList
       .filter((f) => f.category === "expertise")
       .map((d) => d.label);
@@ -105,53 +116,44 @@ export default function Home() {
       .filter((f) => f.category === "location")
       .map((d) => d.label);
 
-    // activos
     let activeFilters = newFilterList
       .filter((d) => d.active === true)
       .map((d) => d.label);
 
-    // Si no hay ninguno activo en una categoría, se consideran todos
-    if (filterExpert.filter((f) => activeFilters.includes(f)).length <= 0) {
+    if (filterExpert.filter((f) => activeFilters.includes(f)).length <= 0)
       activeFilters = activeFilters.concat(filterExpert);
-    }
-    if (filterLocation.filter((f) => activeFilters.includes(f)).length <= 0) {
+
+    if (filterLocation.filter((f) => activeFilters.includes(f)).length <= 0)
       activeFilters = activeFilters.concat(filterLocation);
-    }
 
     if (activeFilters.length > 0) {
-      setDesignersList(
-        designers.filter(
-          (d) =>
-            activeFilters.includes(d.expertise) &&
-            activeFilters.includes(d.location)
-        )
+      const filtered = designers.filter(
+        (d) =>
+          activeFilters.includes(d.expertise) &&
+          activeFilters.includes(d.location)
       );
+
+      const sortedFiltered = filtered.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      setDesignersList(sortedFiltered);
     } else {
       clearFilter();
     }
   };
 
   return (
-    <div
-      className="container"
-      style={{
-        overflow: isReady ? "hidden" : "visible",
-      }}
-    >
+    <div className="container">
       <Head>
         <title>People who design</title>
         <link id="favicon" rel="alternate icon" href="/favicon.ico" />
         <MetaTags />
       </Head>
 
-      {isReady ? (
-        <Content
-          designers={designersList}
-          handleOpenFilter={handleOpenFilter}
-          onClick={filterIsOpen ? handleCloseFilter : undefined}
-          className={filterIsOpen ? "filterIsOpen" : ""}
-        />
-      ) : null}
+      <Content
+        designers={designersList}
+        handleOpenFilter={handleOpenFilter}
+      />
 
       <AnimatePresence>
         {filterIsOpen ? (
@@ -170,6 +172,8 @@ export default function Home() {
           overflow: ${filterIsOpen ? "hidden" : "auto"};
         }
       `}</style>
+
+      <Analytics />
     </div>
   );
 }
@@ -179,14 +183,19 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
 
   useEffect(() => {
     const header = tableHeaderRef.current;
+    if (!header) return;
+
     const sticky = header.getBoundingClientRect().top + 40;
-    const scrollCallBack = window.addEventListener("scroll", () => {
+
+    const scrollCallBack = () => {
       if (window.pageYOffset > sticky) {
         header.classList.add("sticky");
       } else {
         header.classList.remove("sticky");
       }
-    });
+    };
+
+    window.addEventListener("scroll", scrollCallBack);
     return () => {
       window.removeEventListener("scroll", scrollCallBack);
     };
@@ -196,7 +205,7 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
     <div className={className} onClick={onClick}>
       <Nav />
 
-      <Title className="title m0 p0" text="People&nbsp;who&nbsp;design" />
+      <Title className="title m0 p0" text="People who&nbsp;design" />
 
       <motion.div
         initial={{ opacity: 0 }}
@@ -258,7 +267,6 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
           ) : null}
         </table>
       </motion.div>
-
       <style jsx>{`
         .tableContent {
           padding-top: 18vh;
@@ -300,24 +308,6 @@ function Content({ designers, handleOpenFilter, className, onClick }) {
           padding-bottom: 0;
         }
       `}</style>
-
-      <Analytics />
     </div>
   );
-}
-
-function shuffle(array) {
-  const arr = [...array];
-  let m = arr.length,
-    temp,
-    i;
-
-  while (m) {
-    i = Math.floor(Math.random() * m--);
-    temp = arr[m];
-    arr[m] = arr[i];
-    arr[i] = temp;
-  }
-
-  return arr;
 }
