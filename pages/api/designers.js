@@ -9,7 +9,7 @@ export default async function handler(req, res) {
         private_key: process.env.GOOGLE_PRIVATE_KEY,
       },
       scopes: [
-        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
         "https://www.googleapis.com/auth/drive.readonly",
       ],
     });
@@ -23,26 +23,43 @@ export default async function handler(req, res) {
 
     const rows = response.data.values || [];
 
+    // Mapeo EXACTO a tu hoja:
+    // A: Name
+    // B: Location
+    // C: Expertise
+    // D: Link
+    // E: Show
+    // F: Order
+    // G: Linkedin
+    // H: Instagram
+    // I: Photo (enlace público a imagen)
     const db = rows.map((row) => ({
       name: row[0] || "",
       location: row[1] || "",
       expertise: row[2] || "",
       link: row[3] || "",
-      show: row[4] || "",       // antes "approved"
+      show: row[4] || "",
       order: row[5] || "",
       linkedin: row[6] || "",
       instagram: row[7] || "",
-      photo: row[8] || "",       // ahora sí, columna I
+      photo: row[8] || "",
     }));
 
-    // FILTRO: solo mostrar Show = "Yes"
+    // Filtramos:
+    // - ignorar la fila de cabecera
+    // - mostrar solo Show = "Yes"
     const visible = db.filter(
       (item) => item.name !== "" && item.show === "Yes"
     );
 
     res.status(200).json(visible);
   } catch (err) {
-    console.error("API ERROR:", err);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error("API ERROR /api/designers:", err);
+    res
+      .status(500)
+      .json({
+        error: "Something went wrong",
+        message: err.message,
+      });
   }
 }
