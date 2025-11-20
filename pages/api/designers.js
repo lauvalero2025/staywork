@@ -16,17 +16,16 @@ export default async function handler(req, res) {
 
     const rows = data.table?.rows || [];
 
-    const db = rows.map((row) => {
-      const c = row.c || [];
-      return {
-        name: c[0]?.v || "",
-        location: c[1]?.v || "",
-        expertise: c[2]?.v || "",
-        link: c[3]?.v || "",
-        approved: c[4]?.v || "",
-        featured: c[5]?.v || "",
-      };
-    });
+    const db = rows.map((row) => ({
+  name: row[0],
+  location: row[1],
+  expertise: row[2],
+  link: row[3],
+  approved: row[4],
+  featured: row[5],
+  photo: row[6] || "", // 👈 columna Photo
+}));
+
 
     // solo los aprobados con "Yes"
     const sanitizeResult = db.filter(
